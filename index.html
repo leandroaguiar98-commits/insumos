@@ -2,68 +2,192 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Consulta Insumos</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Gestão de Insumos</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <style>
-        body { font-family: sans-serif; padding: 20px; background: #f4f4f4; text-align: center; }
-        .box { background: white; padding: 20px; border-radius: 10px; max-width: 400px; margin: auto; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        select, input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 5px; }
-        .item { padding: 8px; border-bottom: 1px solid #eee; text-align: left; }
+        :root { --primary: #1a73e8; --bg: #f8f9fa; --text: #202124; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; display: flex; justify-content: center; }
+        .card { background: white; width: 100%; max-width: 550px; padding: 30px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); }
+        h2 { text-align: center; color: var(--primary); margin-bottom: 25px; font-weight: 600; }
+        
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 6px; font-size: 0.8rem; font-weight: 700; color: #5f6368; text-transform: uppercase; }
+        
+        select, input { 
+            width: 100%; padding: 12px; border: 1px solid #dadce0; border-radius: 8px; 
+            font-size: 16px; transition: all 0.2s; outline: none; box-sizing: border-box;
+        }
+        select:focus, input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(26,115,232,0.1); }
+        select:disabled { background: #f1f3f4; cursor: not-allowed; }
+
+        .search-area { margin-top: 20px; padding-top: 20px; border-top: 2px solid #f1f3f4; display: none; }
+        .result-list { list-style: none; padding: 0; margin-top: 15px; max-height: 300px; overflow-y: auto; border: 1px solid #eee; border-radius: 8px; }
+        .result-item { padding: 12px 15px; border-bottom: 1px solid #f1f3f4; font-size: 0.95rem; background: #fff; }
+        .result-item:last-child { border-bottom: none; }
+        
+        .btn-reset { 
+            width: 100%; background: #fff; border: 1px solid #dadce0; padding: 10px; 
+            border-radius: 8px; cursor: pointer; margin-top: 15px; color: #d93025; font-weight: 500;
+        }
+        .btn-reset:hover { background: #fff1f0; border-color: #d93025; }
+        #status { text-align: center; font-size: 0.75rem; color: #1a73e8; margin-top: 10px; }
     </style>
 </head>
 <body>
-    <div class="box">
-        <h2>Pesquisa de Insumos</h2>
-        <select id="o" onchange="at()"><option>Carregando...</option></select>
-        <select id="s" onchange="ex()" disabled><option>Obra...</option></select>
-        <div id="ba" style="display:none">
-            <input type="text" id="bu" placeholder="Filtrar..." onkeyup="fi()">
-            <div id="li"></div>
-        </div>
+
+<div class="card">
+    <h2>Consulta de Insumos</h2>
+
+    <div class="form-group">
+        <label>1. Empresa</label>
+        <select id="sel-empresa" onchange="aoMudarEmpresa()">
+            <option value="">Carregando dados...</option>
+        </select>
     </div>
 
-    <script>
-        const U = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQeWoUzGEPCsqfLGQwpwe80rWBZomnX7gEZ4gH-73GbNzKA5UussFtVCJ-POS2fY5gIIYHiO7F1D6uq/pub?gid=0&single=true&output=csv';
-        let d = [], a = [];
+    <div class="form-group">
+        <label>2. Obra</label>
+        <select id="sel-obra" onchange="aoMudarObra()" disabled>
+            <option value="">Selecione a empresa</option>
+        </select>
+    </div>
 
-        window.onload = () => {
-            Papa.parse(U, {
-                download: true, header: true, skipEmptyLines: true,
-                complete: r => {
-                    d = r.data;
-                    const obras = [...new Set(d.map(i => i.OBRA))].filter(x => x);
-                    const sel = document.getElementById('o');
-                    sel.innerHTML = '<option value="">-- Selecione a Obra --</option>';
-                    obras.forEach(x => sel.add(new Option(x, x)));
-                }
-            });
-        };
+    <div class="form-group">
+        <label>3. Serviço</label>
+        <select id="sel-servico" onchange="aoMudarServico()" disabled>
+            <option value="">Selecione a obra</option>
+        </select>
+    </div>
 
-        function at() {
-            const v = document.getElementById('o').value;
-            const sel = document.getElementById('s');
-            const servs = [...new Set(d.filter(i => i.OBRA === v).map(i => i.SERVIÇO))].filter(x => x);
-            sel.innerHTML = '<option value="">-- Selecione o Serviço --</option>';
-            servs.forEach(x => sel.add(new Option(x, x)));
-            sel.disabled = false;
+    <div id="area-busca" class="search-area">
+        <label>4. Pesquisar Insumo</label>
+        <input type="text" id="campo-busca" placeholder="Digite para filtrar..." onkeyup="filtrarLista()">
+        <ul id="lista-resultados" class="result-list"></ul>
+    </div>
+
+    <button class="btn-reset" onclick="resetarTudo()">Limpar Filtros</button>
+    <div id="status">Sincronizado com Google Sheets</div>
+</div>
+
+<script>
+    const URL_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQeWoUzGEPCsqfLGQwpwe80rWBZomnX7gEZ4gH-73GbNzKA5UussFtVCJ-POS2fY5gIIYHiO7F1D6uq/pub?gid=0&single=true&output=csv';
+    
+    let dadosCompletos = [];
+    let insumosFiltrados = [];
+
+    window.onload = carregarDados;
+
+    function carregarDados() {
+        Papa.parse(URL_CSV, {
+            download: true,
+            header: true,
+            skipEmptyLines: true,
+            complete: (res) => {
+                // Normalização das chaves para evitar erros com acentos ou espaços
+                dadosCompletos = res.data.map(item => {
+                    let novoItem = {};
+                    for (let key in item) {
+                        let chaveLimpa = key.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+                        novoItem[chaveLimpa] = item[key];
+                    }
+                    return novoItem;
+                });
+                popularEmpresas();
+            },
+            error: () => { document.getElementById('status').innerText = "Erro ao carregar planilha."; }
+        });
+    }
+
+    function popularEmpresas() {
+        const sel = document.getElementById('sel-empresa');
+        const empresas = [...new Set(dadosCompletos.map(i => i.EMPRESA))].filter(e => e).sort();
+        sel.innerHTML = '<option value="">-- Selecione a Empresa --</option>';
+        empresas.forEach(e => sel.add(new Option(e, e)));
+    }
+
+    function aoMudarEmpresa() {
+        const emp = document.getElementById('sel-empresa').value;
+        const selObra = document.getElementById('sel-obra');
+        const selServ = document.getElementById('sel-servico');
+        
+        document.getElementById('area-busca').style.display = 'none';
+        selServ.disabled = true;
+        selServ.innerHTML = '<option value="">Selecione a obra</option>';
+
+        if (!emp) {
+            selObra.disabled = true;
+            selObra.innerHTML = '<option value="">Selecione a empresa</option>';
+            return;
         }
 
-        function ex() {
-            const ob = document.getElementById('o').value;
-            const se = document.getElementById('s').value;
-            a = d.filter(i => i.OBRA === ob && i.SERVIÇO === se).map(i => i.INSUMO).filter(x => x);
-            document.getElementById('ba').style.display = 'block';
-            re(a);
+        const obras = [...new Set(dadosCompletos.filter(i => i.EMPRESA === emp).map(i => i.OBRA))].filter(o => o).sort();
+        selObra.innerHTML = '<option value="">-- Selecione a Obra --</option>';
+        obras.forEach(o => selObra.add(new Option(o, o)));
+        selObra.disabled = false;
+    }
+
+    function aoMudarObra() {
+        const emp = document.getElementById('sel-empresa').value;
+        const obr = document.getElementById('sel-obra').value;
+        const selServ = document.getElementById('sel-servico');
+        
+        document.getElementById('area-busca').style.display = 'none';
+
+        if (!obr) {
+            selServ.disabled = true;
+            selServ.innerHTML = '<option value="">Selecione a obra</option>';
+            return;
         }
 
-        function re(l) {
-            document.getElementById('li').innerHTML = l.map(i => `<div class="item">${i}</div>`).join('');
+        const servicos = [...new Set(dadosCompletos.filter(i => i.EMPRESA === emp && i.OBRA === obr).map(i => i.SERVICO))].filter(s => s).sort();
+        selServ.innerHTML = '<option value="">-- Selecione o Serviço --</option>';
+        servicos.forEach(s => selServ.add(new Option(s, s)));
+        selServ.disabled = false;
+    }
+
+    function aoMudarServico() {
+        const emp = document.getElementById('sel-empresa').value;
+        const obr = document.getElementById('sel-obra').value;
+        const ser = document.getElementById('sel-servico').value;
+        const areaBusca = document.getElementById('area-busca');
+
+        if (!ser) {
+            areaBusca.style.display = 'none';
+            return;
         }
 
-        function fi() {
-            const t = document.getElementById('bu').value.toLowerCase();
-            re(a.filter(i => i.toLowerCase().includes(t)));
+        insumosFiltrados = dadosCompletos
+            .filter(i => i.EMPRESA === emp && i.OBRA === obr && i.SERVICO === ser)
+            .map(i => i.INSUMO)
+            .filter(ins => ins)
+            .sort();
+
+        areaBusca.style.display = 'block';
+        document.getElementById('campo-busca').value = '';
+        renderizarLista(insumosFiltrados);
+    }
+
+    function renderizarLista(lista) {
+        const ul = document.getElementById('lista-resultados');
+        if (lista.length === 0) {
+            ul.innerHTML = '<li class="result-item" style="color:#999">Nenhum insumo encontrado.</li>';
+            return;
         }
-    </script>
+        ul.innerHTML = lista.map(i => `<li class="result-item">${i}</li>`).join('');
+    }
+
+    function filtrarLista() {
+        const termo = document.getElementById('campo-busca').value.toLowerCase();
+        const filtrados = insumosFiltrados.filter(i => i.toLowerCase().includes(termo));
+        renderizarLista(filtrados);
+    }
+
+    function resetarTudo() {
+        document.getElementById('sel-empresa').value = '';
+        aoMudarEmpresa();
+    }
+</script>
+
 </body>
 </html>
